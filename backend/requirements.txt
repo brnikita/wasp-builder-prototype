@@ -1,12 +1,11 @@
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-sqlalchemy==2.0.25
-psycopg2-binary==2.9.9
-pydantic==2.5.3
-pydantic-settings==2.1.0
-openai==1.14.0
-docker==7.1.0
-requests>=2.32.0
-alembic==1.13.1
-python-multipart==0.0.6
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+sqlalchemy>=2.0.36
+psycopg2-binary>=2.9.10
+pydantic>=2.10.0
+pydantic-settings>=2.7.0
+openrouter>=0.1.0
+docker>=7.1.0
+alembic>=1.14.0
+python-multipart>=0.0.20
 
