@@ -12,6 +12,7 @@ WASP_DOCKERFILE = """FROM node:22-slim
 RUN apt-get update && apt-get install -y \\
     curl \\
     git \\
+    procps \\
     && rm -rf /var/lib/apt/lists/*
 
 # Install Wasp
@@ -24,8 +25,8 @@ WORKDIR /app
 # Copy project files
 COPY . .
 
-# Install dependencies and start
-CMD ["sh", "-c", "wasp db migrate-dev && wasp start"]
+# Run migration and start Wasp
+CMD ["sh", "-c", "echo '--- Wasp Version ---' && wasp version && echo '--- Directory Content ---' && ls -la && echo '--- Running Migration ---' && wasp db migrate-dev --name init 2>&1 || true && echo '--- Starting Wasp ---' && wasp start"]
 """
 
 
@@ -38,6 +39,9 @@ def create_app_files(app_id: str, wasp_schema: str, prisma_schema: str, source_f
     """Create the Wasp app files on disk."""
     app_path = get_app_path(app_id)
     app_path.mkdir(parents=True, exist_ok=True)
+    
+    # Write .wasproot (required for Wasp to recognize the project)
+    (app_path / ".wasproot").write_text("")
     
     # Write main.wasp
     (app_path / "main.wasp").write_text(wasp_schema)
@@ -53,16 +57,56 @@ def create_app_files(app_id: str, wasp_schema: str, prisma_schema: str, source_f
     src_path.mkdir(exist_ok=True)
     
     for file_path, content in source_files.items():
-        full_path = src_path / file_path
+        # Strip leading src/ if present (LLM sometimes includes it)
+        clean_path = file_path.lstrip("src/").lstrip("src\\")
+        full_path = src_path / clean_path
         full_path.parent.mkdir(parents=True, exist_ok=True)
         full_path.write_text(content)
     
-    # Create package.json
+    # Create package.json (required by Wasp 0.20.0 with exact dependencies)
     package_json = """{
   "name": "wasp-app",
-  "dependencies": {}
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [".wasp/build/*", ".wasp/out/*"],
+  "dependencies": {
+    "wasp": "file:.wasp/out/sdk/wasp",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "react-router-dom": "^6.26.2"
+  },
+  "devDependencies": {
+    "vite": "^7.0.6",
+    "prisma": "5.19.1"
+  }
 }"""
     (app_path / "package.json").write_text(package_json)
+    
+    # Create public directory (Wasp watches this)
+    (app_path / "public").mkdir(exist_ok=True)
+    (app_path / "public" / ".gitkeep").write_text("")
+    
+    # Create tsconfig.json (required by Wasp 0.20.0 with exact values)
+    tsconfig = """{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": ".wasp/out/user",
+    "composite": true
+  },
+  "include": ["src"]
+}"""
+    (app_path / "tsconfig.json").write_text(tsconfig)
     
     return app_path
 
@@ -76,10 +120,39 @@ def build_container(app_id: str) -> str:
     return image_name
 
 
+def create_app_database(app_id: str):
+    """Create a database for the app if it doesn't exist."""
+    import subprocess
+    db_name = f"app_{app_id.replace('-', '_')}"
+    
+    # Create database using psql via docker exec
+    try:
+        result = subprocess.run(
+            ["docker", "exec", "wasp-builder-prototype-db-1", "psql", "-U", "wasp_builder", "-d", "wasp_builder", "-c", 
+             f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'"],
+            capture_output=True, text=True, timeout=10
+        )
+        
+        if "(0 rows)" in result.stdout:
+            # Database doesn't exist, create it
+            subprocess.run(
+                ["docker", "exec", "wasp-builder-prototype-db-1", "psql", "-U", "wasp_builder", "-d", "wasp_builder", "-c",
+                 f"CREATE DATABASE {db_name}"],
+                capture_output=True, text=True, timeout=10
+            )
+    except Exception as e:
+        print(f"Warning: Could not create database: {e}")
+    
+    return db_name
+
+
 def start_container(app_id: str, port: int) -> str:
     """Start the app container."""
     image_name = f"wasp-app-{app_id}"
     container_name = f"wasp-container-{app_id}"
+    
+    # Create database for this app
+    db_name = create_app_database(app_id)
     
     # Remove existing container if any
     try:
@@ -93,9 +166,11 @@ def start_container(app_id: str, port: int) -> str:
         name=container_name,
         ports={"3000/tcp": port},
         detach=True,
+        network="wasp-builder-prototype_default",
         log_config={"type": "json-file", "config": {"max-size": "10m", "max-file": "3"}},
         environment={
-            "DATABASE_URL": f"postgresql://wasp_builder:wasp_builder_pass@host.docker.internal:5432/wasp_app_{app_id}"
+            "DATABASE_URL": f"postgresql://wasp_builder:wasp_builder_pass@db:5432/{db_name}",
+            "SKIP_DB_STUDIO": "true"
         }
     )
     

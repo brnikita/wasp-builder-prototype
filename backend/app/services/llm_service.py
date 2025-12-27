@@ -11,7 +11,10 @@ When generating a Wasp application, you must output valid JSON with these exact 
 
 Key Wasp concepts:
 1. main.wasp defines: app config, routes, pages, queries, actions, auth
-2. schema.prisma defines database models using Prisma syntax
+   - App declaration must use PascalCase identifier (e.g. "app MyApp", NOT "app my-app")
+   - IMPORTANT: Do NOT define entities in main.wasp. No "entity User {=psl...psl=}" blocks!
+   - Entities are ONLY defined in schema.prisma file
+2. schema.prisma defines ALL database models using Prisma syntax (User, Task, etc.)
 3. src/ contains React components and server operations
 
 Example main.wasp structure:
@@ -88,13 +91,14 @@ export const createTask: CreateTask<{ description: string }, Task> = async (args
 };
 ```
 
-Example src/pages/MainPage.tsx:
+Example src/pages/MainPage.tsx (IMPORTANT: use named imports with curly braces, NOT default imports):
 ```tsx
-import { useQuery, getTasks } from "wasp/client/operations";
-import { type User } from "wasp/entities";
+import { useQuery, getTasks, createTask, useAction } from "wasp/client/operations";
+import { type User, type Task } from "wasp/entities";
 
 export function MainPage({ user }: { user: User }) {
   const { data: tasks, isLoading } = useQuery(getTasks);
+  const createTaskFn = useAction(createTask);
   
   if (isLoading) return <div>Loading...</div>;
   
@@ -102,7 +106,7 @@ export function MainPage({ user }: { user: User }) {
     <div>
       <h1>Welcome {user.id}</h1>
       <ul>
-        {tasks?.map(task => <li key={task.id}>{task.description}</li>)}
+        {(tasks || []).map((task: Task) => <li key={task.id}>{task.description}</li>)}
       </ul>
     </div>
   );
@@ -132,6 +136,12 @@ page LoginPage { component: import { LoginPage } from "@src/pages/auth" }
 route SignupRoute { path: "/signup", to: SignupPage }
 page SignupPage { component: import { SignupPage } from "@src/pages/auth" }
 ```
+
+CRITICAL TypeScript rules:
+1. ALWAYS use named imports with curly braces: import { useQuery, getTasks } from "wasp/client/operations"
+2. NEVER use default imports like: import getTasks from "wasp/client/operations"  
+3. When mapping arrays, always handle undefined: (items || []).map(...)
+4. Always type your variables: (task: Task) => ...
 
 IMPORTANT: Output ONLY valid JSON, no markdown, no explanation."""
 
