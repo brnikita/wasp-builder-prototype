@@ -6,7 +6,7 @@ from app.config import settings
 
 client = docker.from_env()
 
-WASP_DOCKERFILE = """FROM node:18-slim
+WASP_DOCKERFILE = """FROM node:22-slim
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \\
