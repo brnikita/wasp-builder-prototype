@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+node_modules/
+.next/
+generated_apps/
+*.log
+.DS_Store
+postgres_data/
+

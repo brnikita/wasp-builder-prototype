@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #12121a;
+  --bg-card: #1a1a24;
+  --accent: #f59e0b;
+  --accent-hover: #d97706;
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --border: #27272a;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
