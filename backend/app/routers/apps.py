@@ -6,7 +6,7 @@ from sqlalchemy import func
 from app.database import get_db
 from app.models import Application
 from app.schemas import AppCreate, AppResponse, AppListResponse
-from app.services import claude_service, docker_service
+from app.services import llm_service, docker_service
 from app.config import settings
 
 router = APIRouter(prefix="/api/apps", tags=["apps"])
@@ -82,8 +82,8 @@ async def generate_app(app_id: UUID, db: Session = Depends(get_db)):
     db.commit()
     
     try:
-        # Generate code with Claude
-        result = await claude_service.generate_wasp_app(app.name, app.description)
+        # Generate code with LLM
+        result = await llm_service.generate_wasp_app(app.name, app.description)
         
         app.wasp_schema = result["main_wasp"]
         app.prisma_schema = result["schema_prisma"]

@@ -1,5 +1,5 @@
 import json
-import anthropic
+from openai import OpenAI
 from app.config import settings
 
 WASP_SYSTEM_PROMPT = """You are an expert Wasp framework developer. Wasp is a DSL for building full-stack web applications with React and Node.js.
@@ -137,8 +137,11 @@ IMPORTANT: Output ONLY valid JSON, no markdown, no explanation."""
 
 
 async def generate_wasp_app(name: str, description: str) -> dict:
-    """Generate Wasp application code using Claude."""
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    """Generate Wasp application code using OpenRouter API with Grok."""
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=settings.openrouter_api_key,
+    )
     
     user_prompt = f"""Create a Wasp application with the following requirements:
 
@@ -148,16 +151,16 @@ Description: {description}
 Generate a complete, working Wasp application. Include authentication if the app involves user-specific data.
 Output only valid JSON with main_wasp, schema_prisma, and src_files keys."""
 
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
+    response = client.chat.completions.create(
+        model="x-ai/grok-3-fast",
         max_tokens=8000,
         messages=[
+            {"role": "system", "content": WASP_SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt}
-        ],
-        system=WASP_SYSTEM_PROMPT
+        ]
     )
     
-    response_text = message.content[0].text
+    response_text = response.choices[0].message.content
     
     # Parse JSON response
     try:
@@ -169,7 +172,6 @@ Output only valid JSON with main_wasp, schema_prisma, and src_files keys."""
         if start != -1 and end > start:
             result = json.loads(response_text[start:end])
         else:
-            raise ValueError("Failed to parse Claude response as JSON")
+            raise ValueError("Failed to parse response as JSON")
     
     return result
-

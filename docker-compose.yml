@@ -21,7 +21,7 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql://wasp_builder:wasp_builder_pass@db:5432/wasp_builder
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./generated_apps:/app/generated_apps
