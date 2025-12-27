@@ -93,6 +93,7 @@ def start_container(app_id: str, port: int) -> str:
         name=container_name,
         ports={"3000/tcp": port},
         detach=True,
+        log_config={"type": "json-file", "config": {"max-size": "10m", "max-file": "3"}},
         environment={
             "DATABASE_URL": f"postgresql://wasp_builder:wasp_builder_pass@host.docker.internal:5432/wasp_app_{app_id}"
         }
@@ -126,6 +127,10 @@ def get_container_logs(container_id: str, tail: int = 100) -> str:
         return container.logs(tail=tail).decode("utf-8")
     except docker.errors.NotFound:
         return "Container not found"
+    except docker.errors.APIError as e:
+        if "configured logging driver does not support reading" in str(e):
+            return "Logs unavailable: Docker logging driver doesn't support reading. Configure 'json-file' driver in Docker Desktop settings."
+        return f"Error reading logs: {e}"
 
 
 def cleanup_app(app_id: str, container_id: str | None):
